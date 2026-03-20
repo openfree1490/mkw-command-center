@@ -1,428 +1,631 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect } from 'react'
 
-// ═══ CONVERGENCE-SCORED MOCK DATA ═══
-// Each stock scored against the full MKW convergence checklist
 const STOCKS = [
-  // FULL CONVERGENCE — all 3 frameworks agree
-  { tk: "TSEM", nm: "Tower Semiconductor", px: 141.96, dp: 2.97, wp: 18.85, mp: 12.79,
-    wein: { stage: "2A", ma30w: 120.01, maSlope: "rising 11wk", vol: "2.3x avg" },
-    min: { tpl: [1,1,1,1,1,1,1,1], rs: 99, vcp: { ct: 3, depths: "18→10→5.2%", pivot: 138.50, vol: "1.6x" }, eps: 34, rev: 22, margins: "expanding" },
-    kell: { phase: "EMA Crossback→Pop", emaD: "bull", emaW: "bull", emaM: "bull", light: "green", base: 1 },
-    conv: { primary: true, secondary: false, score: 22, max: 22, zone: "CONVERGENCE" },
-    setup: "Full convergence breakout — VCP pivot cleared on 2.3x volume at EMA crossback",
-    exit: [], risk: "SOX sector pullback", optPlay: "$140C Apr 17 · IV Rank 38" },
-  { tk: "RKLB", nm: "Rocket Lab USA", px: 27.84, dp: 4.12, wp: 11.30, mp: 8.45,
-    wein: { stage: "2A", ma30w: 22.10, maSlope: "rising 8wk", vol: "1.8x avg" },
-    min: { tpl: [1,1,1,1,1,1,1,1], rs: 94, vcp: { ct: 2, depths: "22→9%", pivot: 26.50, vol: "1.5x" }, eps: 0, rev: 55, margins: "expanding" },
-    kell: { phase: "EMA Crossback", emaD: "bull", emaW: "bull", emaM: "bull", light: "green", base: 1 },
-    conv: { primary: true, secondary: false, score: 20, max: 22, zone: "CONVERGENCE" },
-    setup: "1st base EMA crossback — VCP tightening with 55% rev growth, pivot $26.50 cleared",
-    exit: [], risk: "Pre-profit company — EPS negative. Size smaller.", optPlay: "$28C May 16 · IV Rank 42" },
-  // SECONDARY CONVERGENCE — Base n' Break / continuation
-  { tk: "DELL", nm: "Dell Technologies", px: 149.21, dp: -2.48, wp: 1.25, mp: 25.32,
-    wein: { stage: "2B", ma30w: 128.40, maSlope: "rising 16wk", vol: "0.9x avg" },
-    min: { tpl: [1,1,1,1,1,1,1,1], rs: 80, vcp: { ct: 2, depths: "15→8%", pivot: 152.00, vol: "pending" }, eps: 18, rev: 12, margins: "stable" },
-    kell: { phase: "Base n Break", emaD: "neutral", emaW: "bull", emaM: "bull", light: "green", base: 2 },
-    conv: { primary: false, secondary: true, score: 17, max: 22, zone: "SECONDARY" },
-    setup: "2nd base consolidation near EMAs — waiting for volume expansion above $152 pivot",
-    exit: [{ signal: "2nd base — lower success rate per Minervini", severity: "caution" }], risk: "Late-stage base. Tighter stop required.", optPlay: "Wait for breakout confirmation" },
-  { tk: "CF", nm: "CF Industries", px: 126.73, dp: 2.79, wp: 5.49, mp: 27.42,
-    wein: { stage: "2A", ma30w: 105.60, maSlope: "rising 9wk", vol: "1.2x avg" },
-    min: { tpl: [1,1,1,1,1,1,0,1], rs: 57, vcp: { ct: 0, depths: "—", pivot: null, vol: "—" }, eps: 28, rev: 15, margins: "expanding" },
-    kell: { phase: "EMA Crossback", emaD: "bull", emaW: "bull", emaM: "bull", light: "green", base: 1 },
-    conv: { primary: false, secondary: false, score: 14, max: 22, zone: "BUILDING" },
-    setup: "EMA crossback in play but RS only 57 — fails Minervini RS criterion. Watch for improvement.",
-    exit: [{ signal: "RS < 70 — not a confirmed leader", severity: "warning" }], risk: "Lagging RS. Not a true leader yet.", optPlay: "No play until RS > 70" },
-  // BUILDING / ON DECK
-  { tk: "GKOS", nm: "Glaukos Corp", px: 103.22, dp: 0.28, wp: 0.35, mp: -11.85,
-    wein: { stage: "2A", ma30w: 95.80, maSlope: "rising 5wk", vol: "0.7x avg" },
-    min: { tpl: [1,1,1,1,1,0,1,1], rs: 44, vcp: { ct: 2, depths: "20→12%", pivot: 108.00, vol: "pending" }, eps: 0, rev: 18, margins: "improving" },
-    kell: { phase: "Wedge", emaD: "bull", emaW: "bull", emaM: "neutral", light: "green", base: 1 },
-    conv: { primary: false, secondary: false, score: 11, max: 22, zone: "BUILDING" },
-    setup: "Wedge forming but RS 44 is weak. Needs 52wk high breakout + RS surge to qualify.",
-    exit: [{ signal: "RS < 70", severity: "warning" }, { signal: "Monthly negative — trend not confirmed", severity: "caution" }], risk: "Weak RS. Pre-profit.", optPlay: "No play" },
-  { tk: "SMG", nm: "Scotts Miracle-Gro", px: 64.47, dp: 3.57, wp: 2.69, mp: -6.77,
-    wein: { stage: "1B", ma30w: 63.10, maSlope: "flattening", vol: "0.8x avg" },
-    min: { tpl: [1,0,0,0,0,0,0,0], rs: 38, vcp: { ct: 0, depths: "—", pivot: null, vol: "—" }, eps: -12, rev: 3, margins: "contracting" },
-    kell: { phase: "Wedge Pop attempt", emaD: "neutral", emaW: "bull", emaM: "neutral", light: "yellow", base: 0 },
-    conv: { primary: false, secondary: false, score: 4, max: 22, zone: "WATCH" },
-    setup: "Late Stage 1 — potential S1→S2 transition. 30wk MA flattening. Far from convergence.",
-    exit: [{ signal: "Only 1/8 template criteria met", severity: "fail" }, { signal: "Negative EPS growth", severity: "fail" }], risk: "Not investable under MKW. Watch only.", optPlay: "No play" },
+  { tk:"TSEM",nm:"Tower Semiconductor",px:141.96,dp:2.97,wp:18.85,mp:12.79,
+    wein:{stage:"2A",ma:"$120.01 ↑11wk",vol:"2.3x"},
+    min:{tpl:8,rs:99,vcp:"3ct (18→10→5.2%)",pivot:138.50,eps:34,rev:22},
+    kell:{phase:"EMA Crossback→Pop",emaD:"bull",emaW:"bull",emaM:"bull",light:"green",base:1},
+    conv:{score:22,max:22,zone:"CONVERGENCE"},
+    setup:"Full convergence — VCP pivot cleared on 2.3x vol at EMA crossback. RS 99, 3/3 EMA alignment.",
+    opt:"$140C Apr17 · IVR 38",risk:"SOX sector pullback",flags:[] },
+  { tk:"RKLB",nm:"Rocket Lab USA",px:27.84,dp:4.12,wp:11.30,mp:8.45,
+    wein:{stage:"2A",ma:"$22.10 ↑8wk",vol:"1.8x"},
+    min:{tpl:8,rs:94,vcp:"2ct (22→9%)",pivot:26.50,eps:0,rev:55},
+    kell:{phase:"EMA Crossback",emaD:"bull",emaW:"bull",emaM:"bull",light:"green",base:1},
+    conv:{score:20,max:22,zone:"CONVERGENCE"},
+    setup:"1st base EMA crossback — VCP tightening, 55% rev growth. Pre-profit but strong technicals.",
+    opt:"$28C May16 · IVR 42",risk:"Pre-profit. Size smaller.",flags:["EPS negative"] },
+  { tk:"DELL",nm:"Dell Technologies",px:149.21,dp:-2.48,wp:1.25,mp:25.32,
+    wein:{stage:"2B",ma:"$128.40 ↑16wk",vol:"0.9x"},
+    min:{tpl:8,rs:80,vcp:"2ct (15→8%)",pivot:152.00,eps:18,rev:12},
+    kell:{phase:"Base n Break",emaD:"neutral",emaW:"bull",emaM:"bull",light:"green",base:2},
+    conv:{score:17,max:22,zone:"SECONDARY"},
+    setup:"2nd base near EMAs — waiting $152 pivot. Later stage = tighter stop.",
+    opt:"Wait for confirm",risk:"2nd base lower success rate",flags:["Stage 2B","Base #2"] },
+  { tk:"CF",nm:"CF Industries",px:126.73,dp:2.79,wp:5.49,mp:27.42,
+    wein:{stage:"2A",ma:"$105.60 ↑9wk",vol:"1.2x"},
+    min:{tpl:7,rs:57,vcp:"—",pivot:null,eps:28,rev:15},
+    kell:{phase:"EMA Crossback",emaD:"bull",emaW:"bull",emaM:"bull",light:"green",base:1},
+    conv:{score:14,max:22,zone:"BUILDING"},
+    setup:"EMA crossback in play but RS 57 fails Minervini criterion. Watch for RS improvement.",
+    opt:"No play until RS>70",risk:"RS < 70 — not a leader",flags:["RS < 70","No VCP"] },
+  { tk:"GKOS",nm:"Glaukos Corp",px:103.22,dp:0.28,wp:0.35,mp:-11.85,
+    wein:{stage:"2A",ma:"$95.80 ↑5wk",vol:"0.7x"},
+    min:{tpl:7,rs:44,vcp:"2ct (20→12%)",pivot:108.00,eps:0,rev:18},
+    kell:{phase:"Wedge",emaD:"bull",emaW:"bull",emaM:"neutral",light:"green",base:1},
+    conv:{score:11,max:22,zone:"BUILDING"},
+    setup:"Wedge forming but RS 44 weak. Needs breakout + RS surge to qualify.",
+    opt:"No play",risk:"Weak RS, pre-profit",flags:["RS < 70","Monthly negative"] },
+  { tk:"SMG",nm:"Scotts Miracle-Gro",px:64.47,dp:3.57,wp:2.69,mp:-6.77,
+    wein:{stage:"1B",ma:"$63.10 flat",vol:"0.8x"},
+    min:{tpl:1,rs:38,vcp:"—",pivot:null,eps:-12,rev:3},
+    kell:{phase:"Wedge Pop attempt",emaD:"neutral",emaW:"bull",emaM:"neutral",light:"yellow",base:0},
+    conv:{score:4,max:22,zone:"WATCH"},
+    setup:"Late Stage 1 — potential transition. Far from convergence. Watch only.",
+    opt:"No play",risk:"Not investable under MKW",flags:["1/8 template","Neg EPS","Stage 1"] },
 ];
 
 const THREATS = [
-  { tk: "CVNA", sc: 9.1, type: "Bull Trap", sum: "Dark pool short volume 73.6%, insiders liquidated $1B+, subprime auto loan deterioration Q2-Q3 2026. Stage 3→4 transition.", sf: 10.6, wsb: 20, mc: -12.9, divSignals: ["Price below flattening 30wk MA (Weinstein S3)", "Trend Template failing — 200d MA declining", "Wedge Drop — rally into declining EMAs rejected (Kell)"] },
-  { tk: "HIMS", sc: 7.8, type: "Momentum Reversal", sum: "WSB mentions surging while price collapses 33%. High short float. All 3 frameworks signal exit.", sf: 40.8, wsb: 139, mc: -33.0, divSignals: ["Stage 4 confirmed — below declining 30wk MA", "0/8 Trend Template criteria met", "Red Light — below declining 10/20 EMAs"] },
-  { tk: "SMCI", sc: 8.4, type: "Accounting Risk", sum: "Repeated restatement concerns. Extreme volatility. Institutional selling accelerating.", sf: 15.2, wsb: 95, mc: -18.5, divSignals: ["Weinstein Stage 4", "Failed VCP — broke below pivot", "Exhaustion Extension top → Wedge Drop confirmed"] },
+  { tk:"CVNA",sc:9.1,type:"Bull Trap",sum:"Dark pool short volume 73.6%, insiders liquidated $1B+, subprime auto loan deterioration projected Q2-Q3 2026.",sf:10.6,mc:-12.9,exits:["S3→S4 (Weinstein)","Template failing (Minervini)","Wedge Drop (Kell)"] },
+  { tk:"HIMS",sc:7.8,type:"Momentum Reversal",sum:"WSB mentions surging while price collapses 33%. All 3 frameworks signal exit.",sf:40.8,mc:-33.0,exits:["Stage 4 confirmed","0/8 Template","Red Light — below EMAs"] },
+  { tk:"SMCI",sc:8.4,type:"Accounting Risk",sum:"Repeated restatement concerns. Institutional selling accelerating.",sf:15.2,mc:-18.5,exits:["Stage 4","Failed VCP","Exhaustion→Wedge Drop"] },
 ];
-
-const BREADTH = { spx: { v: 5667, c: -0.42, stage: 2, ema20: "above" }, ndx: { v: 19845, c: 0.18, stage: 2, ema20: "above" }, rut: { v: 2034, c: -1.12, stage: 1, ema20: "below" }, vix: 22.45, ad: { a: 1847, d: 1653 }, nh: { h: 87, l: 43 }, a50: 54.2, a200: 61.8, tplCount: 847, sec: [{ n: "Energy", p: 4.2 }, { n: "Tech", p: 0.8 }, { n: "Healthcare", p: -0.3 }, { n: "Financials", p: 1.1 }, { n: "Industrials", p: 2.4 }, { n: "Cons Disc", p: -1.8 }, { n: "Cons Stpl", p: 0.2 }, { n: "Materials", p: 3.1 }, { n: "Real Estate", p: -0.9 }, { n: "Utilities", p: 0.1 }, { n: "Comms", p: -0.5 }] };
 
 const JOURNAL = [
-  { id: 1, d: "03-17", tk: "TSEM", a: "BUY", ty: "Swing Call", st: "$140C 04/17", en: 8.50, cu: 12.20, pnl: 43.5, conv: "PRIMARY", n: "Full convergence. VCP pop on 2.3x vol." },
-  { id: 2, d: "03-14", tk: "CF", a: "BUY", ty: "Swing Call", st: "$125C 04/17", en: 4.80, cu: 6.10, pnl: 27.1, conv: "PARTIAL", n: "EMA crossback but RS < 70. Smaller size." },
-  { id: 3, d: "03-10", tk: "NVDA", a: "SELL", ty: "Stop Out", st: "$950C 03/21", en: 12.00, cu: 0, pnl: -100, conv: "EXIT", n: "S3 transition. 30wk MA flattening. Sold per MKW exit rules." },
+  { id:1,d:"03-17",tk:"TSEM",a:"BUY",st:"$140C 04/17",pnl:43.5,conv:"PRIMARY",n:"Full convergence VCP pop" },
+  { id:2,d:"03-14",tk:"CF",a:"BUY",st:"$125C 04/17",pnl:27.1,conv:"PARTIAL",n:"EMA crossback, RS<70" },
+  { id:3,d:"03-10",tk:"NVDA",a:"STOP",st:"$950C 03/21",pnl:-100,conv:"EXIT",n:"S3 transition — sold per MKW" },
 ];
 
-// ═══ STYLES ═══
-const X = { bg: "#06090f", c1: "#0c1018", c2: "#131a24", b1: "#182030", b2: "#243045", tx: "#b8c4d8", td: "#4a5878", tb: "#ecf0f8", g: "#00e676", r: "#ff3d57", a: "#ffab00", bl: "#448aff", p: "#b388ff", cy: "#18ffff", gd: "#ffd700" };
-const ft = "'DM Mono','Fira Code',monospace", fu = "'Outfit',system-ui,sans-serif";
+const MKT = { spxStage:2, spxEma:"above", tplCount:847, vix:22.45, a50:54.2, a200:61.8,
+  sec:[{n:"Energy",p:4.2},{n:"Tech",p:0.8},{n:"Health",p:-0.3},{n:"Finance",p:1.1},{n:"Indust",p:2.4},{n:"ConDisc",p:-1.8},{n:"ConStp",p:0.2},{n:"Matrl",p:3.1},{n:"RealEst",p:-0.9},{n:"Util",p:0.1},{n:"Comms",p:-0.5}] };
 
-// ═══ UTILITIES ═══
-const Pc = ({ v, s = 10 }) => v == null ? <span style={{ color: X.td, fontSize: s }}>—</span> : <span style={{ color: v >= 0 ? X.g : X.r, fontSize: s, fontFamily: ft }}>{v >= 0 ? "▲+" : "▼"}{v.toFixed(2)}%</span>;
-const Dot = ({ c }) => <div style={{ width: 6, height: 6, borderRadius: "50%", background: c, display: "inline-block" }} />;
-const Cd = ({ l, v, sub, ac }) => <div style={{ background: X.c1, border: `1px solid ${X.b1}`, padding: "10px 12px", flex: "1 1 0", minWidth: 110 }}><div style={{ fontSize: 10, color: X.td, fontFamily: fu, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 3 }}>{l}</div><div style={{ fontSize: 21, fontFamily: ft, fontWeight: 600, color: ac || X.tb }}>{v}</div>{sub && <div style={{ fontSize: 11, color: X.td, marginTop: 2 }}>{sub}</div>}</div>;
+// ═══ FUTURISTIC COLOR SYSTEM ═══
+const K = {
+  void: "#020408",
+  panel: "#080d16",
+  raised: "#0e1520",
+  ghost: "#141e2e",
+  edge: "#1b2a40",
+  edgeLit: "#243856",
+  text: "#8899b4",
+  textMid: "#a0b4d0",
+  textHi: "#dce8ff",
+  white: "#f0f4ff",
+  neon: "#00ff88",
+  neonDim: "#00ff8840",
+  neonGlow: "#00ff8818",
+  ember: "#ff2a44",
+  emberDim: "#ff2a4440",
+  emberGlow: "#ff2a4415",
+  sol: "#ffcc00",
+  solDim: "#ffcc0040",
+  solGlow: "#ffcc0012",
+  arc: "#00ccff",
+  arcDim: "#00ccff40",
+  arcGlow: "#00ccff12",
+  prism: "#a855f7",
+  prismDim: "#a855f740",
+};
+const ZONE_K = { CONVERGENCE: K.sol, SECONDARY: K.arc, BUILDING: K.prism, WATCH: K.text };
 
-const ZONE_COLORS = { "CONVERGENCE": X.gd, "SECONDARY": X.cy, "BUILDING": X.bl, "WATCH": X.td };
-const ZONE_LABELS = { "CONVERGENCE": "⚡ FULL CONVERGENCE", "SECONDARY": "◈ SECONDARY CONVERGENCE", "BUILDING": "◇ BUILDING", "WATCH": "◌ WATCH ONLY" };
-const ZONE_DESCS = { "CONVERGENCE": "All 3 frameworks agree — Weinstein S2A + Minervini VCP/Template + Kell EMA Crossback/Pop", "SECONDARY": "Base n' Break / continuation — 2nd+ base VCP within confirmed uptrend", "BUILDING": "Partial criteria met — approaching convergence but not yet actionable", "WATCH": "Early stage — significant criteria gaps remain" };
+// Fonts
+const hd = "'Orbitron', sans-serif";   // Headlines, tickers, numbers
+const bd = "'Rajdhani', sans-serif";   // Body, descriptions
+const mn = "'Share Tech Mono', monospace"; // Data, values
 
-const ZoneBadge = ({ zone }) => <span style={{ fontSize: 11, fontFamily: ft, padding: "2px 7px", borderRadius: 2, color: ZONE_COLORS[zone], background: ZONE_COLORS[zone] + "18", border: `1px solid ${ZONE_COLORS[zone]}30`, letterSpacing: 0.5, whiteSpace: "nowrap" }}>{zone}</span>;
-const ConvBar = ({ score, max }) => <div style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 50, height: 4, background: X.b1, borderRadius: 2, overflow: "hidden" }}><div style={{ width: `${(score / max) * 100}%`, height: "100%", background: score >= 20 ? X.gd : score >= 15 ? X.cy : score >= 10 ? X.bl : X.td, borderRadius: 2 }} /></div><span style={{ fontSize: 13, fontFamily: ft, color: score >= 20 ? X.gd : X.td }}>{score}/{max}</span></div>;
+// ═══ COMPONENTS ═══
+const Pc = ({ v, s = 12 }) => v == null
+  ? <span style={{ color: K.text, fontSize: s }}>—</span>
+  : <span style={{
+      fontSize: s, fontFamily: mn, fontWeight: 600, letterSpacing: 0.5,
+      color: v >= 0 ? K.neon : K.ember,
+      textShadow: v >= 0 ? `0 0 8px ${K.neonDim}` : `0 0 8px ${K.emberDim}`,
+    }}>{v >= 0 ? "+" : ""}{v.toFixed(2)}%</span>;
 
-// ═══ MARKET ENVIRONMENT — TRIPLE CHECK ═══
-function MarketEnv() {
-  const b = BREADTH;
-  const weinOk = b.spx.stage === 2;
-  const kellOk = b.spx.ema20 === "above";
-  const minOk = b.tplCount > 500;
-  const allGreen = weinOk && kellOk && minOk;
+const Orb = ({ c, sz = 8 }) => <div style={{
+  width: sz, height: sz, borderRadius: "50%", background: c,
+  boxShadow: `0 0 6px ${c}80, 0 0 2px ${c}`,
+}} />;
 
-  return <div style={{ background: allGreen ? X.g + "08" : X.r + "08", border: `1px solid ${allGreen ? X.g : X.a}25`, padding: "12px 14px" }}>
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-      <span style={{ fontFamily: fu, fontSize: 16, fontWeight: 700, color: X.tb }}>Market Environment — Triple Framework Check</span>
-      <span style={{ fontFamily: ft, fontSize: 15, fontWeight: 700, color: allGreen ? X.g : X.a, padding: "2px 10px", background: allGreen ? X.g + "18" : X.a + "18", border: `1px solid ${allGreen ? X.g : X.a}30`, borderRadius: 3 }}>
-        {allGreen ? "✓ ALL CLEAR — Full aggression" : "△ MIXED — Be selective"}
-      </span>
+const ConvMeter = ({ score, max }) => {
+  const pct = (score / max) * 100;
+  const c = score >= 20 ? K.sol : score >= 15 ? K.arc : score >= 10 ? K.prism : K.text;
+  return <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+    <div style={{ width: 52, height: 6, background: K.edge, borderRadius: 3, overflow: "hidden", position: "relative" }}>
+      <div style={{
+        width: `${pct}%`, height: "100%", borderRadius: 3,
+        background: `linear-gradient(90deg, ${c}90, ${c})`,
+        boxShadow: `0 0 8px ${c}60`,
+      }} />
     </div>
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
-      {[
-        ["WEINSTEIN", `S&P in Stage ${b.spx.stage}`, weinOk, weinOk ? "Indices in Stage 2 — bullish backdrop" : "Indices NOT in Stage 2 — reduce exposure"],
-        ["KELL", `S&P ${b.spx.ema20} 20 EMA`, kellOk, kellOk ? "Green Light — above 20 EMA" : "Red Light — below 20 EMA, stay cash"],
-        ["MINERVINI", `${b.tplCount} stocks pass Template`, minOk, minOk ? `${b.tplCount} qualifiers = healthy market` : "Few qualifiers = narrow/weak market"],
-      ].map(([name, val, ok, desc]) => (
-        <div key={name} style={{ background: X.c1, border: `1px solid ${ok ? X.g : X.r}20`, padding: "10px 12px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-            <span style={{ fontSize: 13, fontFamily: ft, color: ok ? X.g : X.r, letterSpacing: 1.5 }}>{name}</span>
-            <span style={{ fontSize: 14, color: ok ? X.g : X.r }}>{ok ? "✓" : "✗"}</span>
-          </div>
-          <div style={{ fontSize: 16, fontFamily: ft, fontWeight: 600, color: X.tb, marginBottom: 3 }}>{val}</div>
-          <div style={{ fontSize: 11, fontFamily: fu, color: X.td, lineHeight: 1.5 }}>{desc}</div>
-        </div>
-      ))}
-    </div>
+    <span style={{ fontSize: 12, fontFamily: hd, fontWeight: 700, color: c, textShadow: `0 0 10px ${c}50` }}>{score}</span>
   </div>;
-}
+};
 
-// ═══ CONVERGENCE CHECKLIST PANEL ═══
-function Checklist({ s }) {
-  const checks = [
-    { cat: "MARKET", items: [["Indices in Weinstein S2", BREADTH.spx.stage === 2], ["Kell Green Light (above 20 EMA)", BREADTH.spx.ema20 === "above"], ["Minervini: many stocks pass Template", BREADTH.tplCount > 500]] },
-    { cat: "TREND", items: [["Weinstein: Stock in Stage 2A", s.wein.stage === "2A"], ["Template: 8/8 criteria met", s.min.tpl.every(x => x === 1)], ["RS Rating > 70", s.min.rs >= 70], ["Kell: Above rising 10/20 EMAs", s.kell.emaD === "bull" && s.kell.emaW === "bull"], ["Price > 50d > 150d > 200d (stacked)", s.min.tpl[0] && s.min.tpl[1] && s.min.tpl[3]]] },
-    { cat: "FUNDAMENTALS", items: [["EPS growth > 20% (accelerating)", s.min.eps > 20], ["Revenue growth > 15%", s.min.rev > 15], ["Margins expanding", s.min.margins === "expanding"]] },
-    { cat: "ENTRY", items: [["VCP formed (2+ contractions, tightening)", s.min.vcp.ct >= 2], ["Volume expansion at pivot (1.4x+)", parseFloat(s.min.vcp.vol) >= 1.4], ["Kell: EMA Crossback or Pop in play", s.kell.phase.includes("Crossback") || s.kell.phase.includes("Pop")], ["Entry within 5% of pivot", s.min.vcp.pivot ? (s.px / s.min.vcp.pivot - 1) * 100 <= 5 : false]] },
-    { cat: "RISK", items: [["Stop below VCP low / EMA support", true], ["Risk < 7-8% from entry", true], ["R:R ratio ≥ 3:1", true]] },
-  ];
-  const total = checks.reduce((a, c) => a + c.items.length, 0);
-  const passed = checks.reduce((a, c) => a + c.items.filter(i => i[1]).length, 0);
+const ZTag = ({ zone }) => {
+  const c = ZONE_K[zone];
+  return <span style={{
+    fontSize: 9, fontFamily: hd, fontWeight: 700, letterSpacing: 1.5,
+    padding: "3px 8px", borderRadius: 2,
+    color: c, background: c + "12", border: `1px solid ${c}35`,
+    textShadow: `0 0 8px ${c}40`,
+  }}>{zone}</span>;
+};
 
-  return <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
-      <span style={{ fontFamily: fu, fontSize: 15, fontWeight: 600, color: X.tb }}>MKW Convergence Checklist</span>
-      <span style={{ fontFamily: ft, fontSize: 17, fontWeight: 700, color: passed >= 18 ? X.gd : passed >= 14 ? X.cy : X.a }}>{passed}/{total}</span>
+const Glass = ({ children, glow, style: s = {} }) => <div style={{
+  background: `linear-gradient(135deg, ${K.panel}ee, ${K.raised}cc)`,
+  backdropFilter: "blur(12px)",
+  border: `1px solid ${glow || K.edge}30`,
+  borderRadius: 14,
+  overflow: "hidden",
+  ...s,
+}}>{children}</div>;
+
+// ═══ DASHBOARD ═══
+function DashTab({ onSelect }) {
+  const conv = STOCKS.filter(s => s.conv.zone === "CONVERGENCE");
+  const sec = STOCKS.filter(s => s.conv.zone === "SECONDARY");
+  const weinOk = MKT.spxStage === 2, kellOk = MKT.spxEma === "above", minOk = MKT.tplCount > 500;
+  const allOk = weinOk && kellOk && minOk;
+
+  return <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: "14px 16px", paddingBottom: 100 }}>
+    {/* Triple Check */}
+    <Glass glow={allOk ? K.neon : K.sol}>
+      <div style={{ padding: "14px 16px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <span style={{ fontFamily: hd, fontSize: 11, fontWeight: 700, color: K.white, letterSpacing: 2 }}>MARKET STATUS</span>
+          <span style={{
+            fontFamily: hd, fontSize: 10, fontWeight: 800, letterSpacing: 1,
+            color: allOk ? K.neon : K.sol,
+            textShadow: `0 0 12px ${allOk ? K.neonDim : K.solDim}`,
+          }}>{allOk ? "▣ ALL SYSTEMS GO" : "△ MIXED SIGNAL"}</span>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          {[
+            ["WEINSTEIN", `STG ${MKT.spxStage}`, weinOk, K.neon],
+            ["MINERVINI", `${MKT.tplCount}`, minOk, K.prism],
+            ["KELL", MKT.spxEma === "above" ? "GREEN" : "RED", kellOk, K.arc],
+          ].map(([name, val, ok, c]) => (
+            <div key={name} style={{
+              flex: 1, background: K.void, borderRadius: 10, padding: "10px 10px",
+              border: `1px solid ${ok ? c : K.ember}25`,
+              position: "relative", overflow: "hidden",
+            }}>
+              {ok && <div style={{
+                position: "absolute", top: 0, left: 0, right: 0, height: 2,
+                background: `linear-gradient(90deg, transparent, ${c}, transparent)`,
+              }} />}
+              <div style={{ fontFamily: hd, fontSize: 7, fontWeight: 700, color: c, letterSpacing: 2, marginBottom: 4 }}>{name}</div>
+              <div style={{ fontFamily: hd, fontSize: 16, fontWeight: 800, color: K.white, textShadow: `0 0 12px ${c}30` }}>{val}</div>
+              <div style={{ fontFamily: mn, fontSize: 9, color: ok ? c : K.ember, marginTop: 4 }}>{ok ? "CLEAR" : "ALERT"}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </Glass>
+
+    {/* Quick Stats */}
+    <div style={{ display: "flex", gap: 8 }}>
+      {[["VIX", MKT.vix, MKT.vix > 20 ? K.sol : K.neon], [">50D", MKT.a50 + "%", MKT.a50 > 50 ? K.neon : K.ember], ["CONV", conv.length, K.sol]].map(([l, v, c]) =>
+        <div key={l} style={{
+          flex: 1, background: K.panel, borderRadius: 10, padding: "10px 12px",
+          border: `1px solid ${K.edge}`,
+        }}>
+          <div style={{ fontFamily: hd, fontSize: 7, fontWeight: 600, color: K.text, letterSpacing: 2 }}>{l}</div>
+          <div style={{
+            fontFamily: hd, fontSize: 22, fontWeight: 900, color: c, marginTop: 4,
+            textShadow: `0 0 15px ${c}40`,
+          }}>{v}</div>
+        </div>
+      )}
     </div>
-    {checks.map(c => <div key={c.cat}>
-      <div style={{ fontSize: 10, fontFamily: ft, color: X.td, letterSpacing: 1.5, marginBottom: 2, marginTop: 4 }}>{c.cat}</div>
-      {c.items.map(([label, ok], i) => <div key={i} style={{ display: "flex", gap: 5, fontSize: 13, fontFamily: ft, padding: "1px 0" }}>
-        <span style={{ color: ok ? X.g : X.r, width: 10 }}>{ok ? "✓" : "✗"}</span>
-        <span style={{ color: ok ? X.tx : X.td }}>{label}</span>
+
+    {/* Convergence Zone */}
+    {conv.length > 0 && <Glass glow={K.sol}>
+      <div style={{
+        padding: "12px 16px", borderBottom: `1px solid ${K.sol}15`,
+        background: `linear-gradient(90deg, ${K.solGlow}, transparent)`,
+      }}>
+        <span style={{
+          fontFamily: hd, fontSize: 11, fontWeight: 800, letterSpacing: 3, color: K.sol,
+          textShadow: `0 0 15px ${K.solDim}`,
+        }}>⚡ CONVERGENCE ZONE</span>
+      </div>
+      {conv.map(s => <div key={s.tk} onClick={() => onSelect(s)} style={{
+        padding: "14px 16px", borderBottom: `1px solid ${K.edge}30`, cursor: "pointer",
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <span style={{
+              fontFamily: hd, fontSize: 18, fontWeight: 900, color: K.white, letterSpacing: 1,
+              textShadow: `0 0 10px ${K.sol}25`,
+            }}>{s.tk}</span>
+            <span style={{ fontFamily: mn, fontSize: 11, color: K.text, marginLeft: 8 }}>${s.px}</span>
+          </div>
+          <ConvMeter score={s.conv.score} max={s.conv.max} />
+        </div>
+        <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+          <Pc v={s.dp} /><Pc v={s.wp} /><Pc v={s.mp} />
+        </div>
+        <div style={{
+          fontFamily: mn, fontSize: 10, color: K.sol, marginTop: 8,
+          textShadow: `0 0 6px ${K.solDim}`,
+        }}>{s.kell.phase} · RS {s.min.rs} · VCP {s.min.vcp}</div>
+        <div style={{ fontFamily: bd, fontSize: 11, color: K.textMid, marginTop: 6, lineHeight: 1.6 }}>{s.setup}</div>
+        {s.opt && s.opt !== "No play" && <div style={{
+          fontFamily: mn, fontSize: 10, color: K.arc, marginTop: 8,
+          padding: "6px 10px", background: K.arcGlow, borderRadius: 6,
+          border: `1px solid ${K.arc}20`,
+        }}>⟐ {s.opt}</div>}
       </div>)}
-    </div>)}
+    </Glass>}
+
+    {/* Secondary */}
+    {sec.length > 0 && <Glass glow={K.arc}>
+      <div style={{ padding: "10px 16px", borderBottom: `1px solid ${K.arc}10`, background: K.arcGlow }}>
+        <span style={{ fontFamily: hd, fontSize: 10, fontWeight: 700, letterSpacing: 2, color: K.arc }}>◈ SECONDARY CONVERGENCE</span>
+      </div>
+      {sec.map(s => <div key={s.tk} onClick={() => onSelect(s)} style={{
+        padding: "10px 16px", display: "flex", justifyContent: "space-between", alignItems: "center",
+        borderBottom: `1px solid ${K.edge}20`, cursor: "pointer",
+      }}>
+        <div>
+          <span style={{ fontFamily: hd, fontSize: 14, fontWeight: 800, color: K.white }}>{s.tk}</span>
+          <span style={{ fontFamily: mn, fontSize: 10, color: K.text, marginLeft: 6 }}>Base #{s.kell.base}</span>
+        </div>
+        <ConvMeter score={s.conv.score} max={s.conv.max} />
+      </div>)}
+    </Glass>}
+
+    {/* Threat Alerts */}
+    <Glass glow={K.ember}>
+      <div style={{ padding: "10px 16px", borderBottom: `1px solid ${K.ember}10`, background: K.emberGlow }}>
+        <span style={{ fontFamily: hd, fontSize: 10, fontWeight: 700, letterSpacing: 2, color: K.ember }}>⊘ DIVERGENCE ALERTS</span>
+      </div>
+      {THREATS.filter(t => t.sc >= 8).map(t => <div key={t.tk} style={{
+        padding: "10px 16px", display: "flex", justifyContent: "space-between",
+        borderBottom: `1px solid ${K.edge}15`,
+      }}>
+        <span style={{ fontFamily: hd, fontSize: 12, fontWeight: 700, color: K.ember, textShadow: `0 0 8px ${K.emberDim}` }}>{t.tk} <span style={{ fontFamily: bd, fontWeight: 400, color: K.text, fontSize: 10 }}>{t.type}</span></span>
+        <span style={{ fontFamily: hd, fontSize: 12, fontWeight: 800, color: K.ember }}>{t.sc}</span>
+      </div>)}
+    </Glass>
+
+    {/* Sectors */}
+    <Glass>
+      <div style={{ padding: "10px 16px", borderBottom: `1px solid ${K.edge}20` }}>
+        <span style={{ fontFamily: hd, fontSize: 9, fontWeight: 700, letterSpacing: 2, color: K.textMid }}>SECTOR ROTATION</span>
+      </div>
+      <div style={{ padding: "8px 12px", display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 4 }}>
+        {[...MKT.sec].sort((a, b) => b.p - a.p).slice(0, 8).map(s => {
+          const c = s.p > 0.5 ? K.neon : s.p > -0.5 ? K.text : K.ember;
+          const bg = s.p > 0 ? `rgba(0,255,136,${Math.min(Math.abs(s.p) / 5, 0.15)})` : `rgba(255,42,68,${Math.min(Math.abs(s.p) / 5, 0.15)})`;
+          return <div key={s.n} style={{ background: bg, borderRadius: 8, padding: "6px 4px", textAlign: "center" }}>
+            <div style={{ fontFamily: bd, fontSize: 8, color: K.text, fontWeight: 500 }}>{s.n}</div>
+            <div style={{ fontFamily: hd, fontSize: 13, fontWeight: 800, color: c, marginTop: 2, textShadow: `0 0 6px ${c}30` }}>{s.p > 0 ? "+" : ""}{s.p}</div>
+          </div>;
+        })}
+      </div>
+    </Glass>
   </div>;
 }
 
-// ═══ TAB: DASHBOARD ═══
-function Dash() {
-  const zones = { "CONVERGENCE": STOCKS.filter(s => s.conv.zone === "CONVERGENCE"), "SECONDARY": STOCKS.filter(s => s.conv.zone === "SECONDARY"), "BUILDING": STOCKS.filter(s => s.conv.zone === "BUILDING"), "WATCH": STOCKS.filter(s => s.conv.zone === "WATCH") };
-  const b = BREADTH;
-  return <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-    <MarketEnv />
-    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-      <Cd l="S&P 500" v={b.spx.v.toLocaleString()} sub={<Pc v={b.spx.c} s={11} />} />
-      <Cd l="VIX" v={b.vix} ac={b.vix > 20 ? X.a : X.g} sub={b.vix > 25 ? "Elevated — reduce size" : b.vix > 20 ? "Slightly elevated" : "Low — favorable"} />
-      <Cd l="Convergence Names" v={zones.CONVERGENCE.length} ac={X.gd} sub="Full 3-framework agreement" />
-      <Cd l="Template Qualifiers" v={b.tplCount} sub="Stocks passing 8/8 criteria" ac={b.tplCount > 500 ? X.g : X.r} />
-    </div>
-    {/* Convergence Zone Summary */}
-    <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-      <div style={{ flex: "1 1 420px", background: X.c1, border: `1px solid ${X.gd}20`, padding: 12 }}>
-        <div style={{ fontSize: 14, fontFamily: fu, fontWeight: 600, color: X.gd, marginBottom: 8 }}>⚡ Convergence Zone — Highest Conviction</div>
-        {zones.CONVERGENCE.length === 0 ? <div style={{ fontSize: 14, fontFamily: ft, color: X.td, padding: 12, textAlign: "center" }}>No full convergence setups today</div> :
-        zones.CONVERGENCE.map(s => <div key={s.tk} style={{ padding: "8px 10px", background: X.gd + "08", borderLeft: `2px solid ${X.gd}`, marginBottom: 4 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div><span style={{ fontFamily: ft, fontSize: 17, fontWeight: 700, color: X.tb }}>{s.tk}</span><span style={{ fontSize: 14, fontFamily: ft, color: X.td, marginLeft: 6 }}>${s.px} · RS {s.min.rs}</span></div>
-            <ConvBar score={s.conv.score} max={s.conv.max} />
-          </div>
-          <div style={{ fontSize: 13, fontFamily: ft, color: X.gd, marginTop: 3 }}>{s.kell.phase} · VCP {s.min.vcp.ct} contractions ({s.min.vcp.depths})</div>
-          <div style={{ fontSize: 11, fontFamily: fu, color: X.tx, marginTop: 2 }}>{s.setup}</div>
-        </div>)}
-      </div>
-      <div style={{ flex: "1 1 280px", display: "flex", flexDirection: "column", gap: 8 }}>
-        {/* Secondary */}
-        <div style={{ background: X.c1, border: `1px solid ${X.cy}20`, padding: 12 }}>
-          <div style={{ fontSize: 13, fontFamily: fu, fontWeight: 600, color: X.cy, marginBottom: 6 }}>◈ Secondary Convergence — Continuation Setups</div>
-          {zones.SECONDARY.map(s => <div key={s.tk} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 0" }}>
-            <div><span style={{ fontFamily: ft, fontSize: 15, fontWeight: 600, color: X.tb }}>{s.tk}</span><span style={{ fontSize: 13, fontFamily: ft, color: X.td, marginLeft: 4 }}>Base #{s.kell.base}</span></div>
-            <ConvBar score={s.conv.score} max={s.conv.max} />
-          </div>)}
-        </div>
-        {/* Threat Alert */}
-        <div style={{ background: X.r + "08", border: `1px solid ${X.r}20`, padding: 12 }}>
-          <div style={{ fontSize: 13, fontFamily: fu, fontWeight: 600, color: X.r, marginBottom: 6 }}>🚨 Divergence Alerts — Exit Zone</div>
-          {THREATS.slice(0, 2).map(t => <div key={t.tk} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0" }}>
-            <span style={{ fontFamily: ft, fontSize: 15, fontWeight: 600, color: X.r }}>{t.tk} · {t.type}</span>
-            <span style={{ fontSize: 13, fontFamily: ft, color: X.r }}>{t.sc}/10</span>
-          </div>)}
-        </div>
-      </div>
-    </div>
-    {/* Sector Rotation */}
-    <div style={{ background: X.c1, border: `1px solid ${X.b1}`, padding: 12 }}>
-      <div style={{ fontSize: 13, fontFamily: fu, fontWeight: 600, color: X.tb, marginBottom: 6 }}>Sector Rotation — Weinstein "Forest to Trees"</div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
-        {b.sec.map(s => { const c = s.p > 0.5 ? X.g : s.p > -0.5 ? X.td : X.r; const bg = s.p > 2 ? "#00e67620" : s.p > 0.5 ? "#00e6760c" : s.p > -0.5 ? X.td + "06" : "#ff3d570c"; return <div key={s.n} style={{ background: bg, padding: "6px 10px", flex: "1 1 75px", minWidth: 75, textAlign: "center" }}><div style={{ fontSize: 10, fontFamily: fu, color: X.td }}>{s.n}</div><div style={{ fontSize: 15, fontFamily: ft, fontWeight: 600, color: c }}>{s.p > 0 ? "+" : ""}{s.p}%</div></div>; })}
-      </div>
-    </div>
-  </div>;
-}
-
-// ═══ TAB: CONVERGENCE WATCHLIST ═══
-function WL({ stocks }) {
-  const [sel, setSel] = useState(null);
+// ═══ WATCHLIST ═══
+function WatchTab({ onSelect }) {
   const zones = ["CONVERGENCE", "SECONDARY", "BUILDING", "WATCH"];
-  return <div style={{ display: "flex", gap: 12 }}>
-    <div style={{ flex: "1 1 0", display: "flex", flexDirection: "column", gap: 14 }}>
-      {zones.map(zone => {
-        const items = stocks.filter(s => s.conv.zone === zone);
-        if (items.length === 0) return null;
-        const zc = ZONE_COLORS[zone];
-        return <div key={zone} style={{ background: X.c1, border: `1px solid ${zc}20`, overflow: "hidden" }}>
-          <div style={{ padding: "10px 14px", borderBottom: `1px solid ${X.b1}`, background: zc + "06" }}>
-            <div style={{ fontFamily: fu, fontSize: 14, fontWeight: 700, color: zc }}>{ZONE_LABELS[zone]} <span style={{ fontSize: 11, fontWeight: 400, color: X.td, marginLeft: 6 }}>{items.length}</span></div>
-            <div style={{ fontSize: 10, fontFamily: fu, color: X.td, marginTop: 2 }}>{ZONE_DESCS[zone]}</div>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "52px 65px 62px 62px 70px 32px 42px 50px 60px 1fr", padding: "4px 14px", gap: 2, borderBottom: `1px solid ${X.b1}` }}>
-            {["TICKER", "PRICE", "DAY %", "WEEK %", "MONTH %", "RS", "EMA", "CONV", "PHASE", "SETUP / CONVERGENCE NOTES"].map(h => <span key={h} style={{ fontSize: 9, fontFamily: ft, color: X.td, letterSpacing: 1 }}>{h}</span>)}
-          </div>
-          {items.map((s, i) => <div key={s.tk} onClick={() => setSel(s)} style={{ display: "grid", gridTemplateColumns: "52px 65px 62px 62px 70px 32px 42px 50px 60px 1fr", padding: "7px 14px", gap: 2, alignItems: "center", background: sel?.tk === s.tk ? zc + "10" : i % 2 ? X.td + "04" : "transparent", cursor: "pointer", borderLeft: sel?.tk === s.tk ? `2px solid ${zc}` : "2px solid transparent" }}>
-            <span style={{ fontFamily: ft, fontSize: 15, fontWeight: 700, color: X.tb }}>{s.tk}</span>
-            <span style={{ fontFamily: ft, fontSize: 13, color: X.tx }}>${s.px}</span>
-            <Pc v={s.dp} s={13} /><Pc v={s.wp} s={13} /><Pc v={s.mp} s={13} />
-            <span style={{ fontFamily: ft, fontSize: 13, fontWeight: 700, color: s.min.rs >= 80 ? X.g : s.min.rs >= 70 ? X.a : X.r }}>{s.min.rs}</span>
-            <div style={{ display: "flex", gap: 1.5 }}><Dot c={s.kell.emaD === "bull" ? X.g : s.kell.emaD === "bear" ? X.r : X.a} /><Dot c={s.kell.emaW === "bull" ? X.g : X.a} /><Dot c={s.kell.emaM === "bull" ? X.g : X.a} /></div>
-            <ConvBar score={s.conv.score} max={s.conv.max} />
-            <span style={{ fontSize: 11, fontFamily: ft, color: X.tx }}>{s.kell.phase.split("→")[0]}</span>
-            <span style={{ fontSize: 11, fontFamily: ft, color: X.td, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.setup}</span>
-          </div>)}
-        </div>;
-      })}
-    </div>
-    {/* Detail Sidebar */}
-    {sel && <div style={{ width: 260, background: X.c1, border: `1px solid ${ZONE_COLORS[sel.conv.zone]}20`, padding: 14, flexShrink: 0, overflowY: "auto", maxHeight: "70vh" }}>
-      <div style={{ borderBottom: `1px solid ${X.b1}`, paddingBottom: 8, marginBottom: 8 }}>
-        <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontFamily: fu, fontSize: 16, fontWeight: 700, color: X.tb }}>{sel.tk}</span><ZoneBadge zone={sel.conv.zone} /></div>
-        <div style={{ fontSize: 13, fontFamily: ft, color: X.td }}>{sel.nm} · ${sel.px}</div>
-      </div>
-      {/* Framework breakdown */}
-      <div style={{ marginBottom: 8 }}>
-        <div style={{ fontSize: 10, fontFamily: ft, color: X.td, letterSpacing: 1.5, marginBottom: 3 }}>WEINSTEIN</div>
-        <div style={{ fontSize: 13, fontFamily: ft, color: X.tx }}>Stage {sel.wein.stage} · 30wk MA ${sel.wein.ma30w} ({sel.wein.maSlope})</div>
-        <div style={{ fontSize: 11, fontFamily: ft, color: X.td }}>Breakout volume: {sel.wein.vol}</div>
-      </div>
-      <div style={{ marginBottom: 8 }}>
-        <div style={{ fontSize: 10, fontFamily: ft, color: X.td, letterSpacing: 1.5, marginBottom: 3 }}>MINERVINI</div>
-        <div style={{ fontSize: 13, fontFamily: ft, color: X.tx }}>Template: {sel.min.tpl.filter(x => x).length}/8 · RS: {sel.min.rs}</div>
-        <div style={{ fontSize: 11, fontFamily: ft, color: X.td }}>VCP: {sel.min.vcp.ct > 0 ? `${sel.min.vcp.ct} contractions (${sel.min.vcp.depths})` : "None"}</div>
-        <div style={{ fontSize: 11, fontFamily: ft, color: X.td }}>EPS: {sel.min.eps > 0 ? "+" : ""}{sel.min.eps}% · Rev: +{sel.min.rev}%</div>
-      </div>
-      <div style={{ marginBottom: 8 }}>
-        <div style={{ fontSize: 10, fontFamily: ft, color: X.td, letterSpacing: 1.5, marginBottom: 3 }}>KELL</div>
-        <div style={{ fontSize: 13, fontFamily: ft, color: X.tx }}>Phase: {sel.kell.phase} · Base #{sel.kell.base || "—"}</div>
-        <div style={{ fontSize: 11, fontFamily: ft, color: X.td }}>Light: <span style={{ color: sel.kell.light === "green" ? X.g : X.a }}>{sel.kell.light}</span> · D/W/M: {sel.kell.emaD}/{sel.kell.emaW}/{sel.kell.emaM}</div>
-      </div>
-      {sel.optPlay && <div style={{ background: X.bl + "10", border: `1px solid ${X.bl}20`, padding: "6px 8px", marginBottom: 8 }}>
-        <div style={{ fontSize: 10, fontFamily: ft, color: X.bl, letterSpacing: 1.5 }}>OPTIONS</div>
-        <div style={{ fontSize: 13, fontFamily: ft, color: X.cy }}>{sel.optPlay}</div>
-      </div>}
-      {sel.exit.length > 0 && <div style={{ marginBottom: 8 }}>
-        <div style={{ fontSize: 10, fontFamily: ft, color: X.r, letterSpacing: 1.5, marginBottom: 3 }}>⚠ FLAGS</div>
-        {sel.exit.map((e, i) => <div key={i} style={{ fontSize: 11, fontFamily: ft, color: e.severity === "fail" ? X.r : X.a, padding: "1px 0" }}>• {e.signal}</div>)}
-      </div>}
-      <Checklist s={sel} />
-    </div>}
-  </div>;
-}
-
-// ═══ TAB: AI ANALYSIS ═══
-function AI() {
-  const convStocks = STOCKS.filter(s => s.conv.zone === "CONVERGENCE" || s.conv.zone === "SECONDARY");
-  const [sel, setSel] = useState(convStocks[0] || STOCKS[0]);
-  return <div style={{ display: "flex", gap: 12, minHeight: 440 }}>
-    <div style={{ width: 140, background: X.c1, border: `1px solid ${X.b1}`, padding: "8px 0", flexShrink: 0 }}>
-      <div style={{ padding: "0 10px 6px", fontSize: 10, fontFamily: ft, color: X.td, letterSpacing: 1.5 }}>BY ZONE</div>
-      {STOCKS.map(s => <div key={s.tk} onClick={() => setSel(s)} style={{ padding: "5px 10px", cursor: "pointer", fontFamily: ft, fontSize: 14, color: sel?.tk === s.tk ? X.tb : X.td, background: sel?.tk === s.tk ? X.c2 : "transparent", borderLeft: sel?.tk === s.tk ? `2px solid ${ZONE_COLORS[s.conv.zone]}` : "2px solid transparent", display: "flex", justifyContent: "space-between" }}>
-        <span>{s.tk}</span><span style={{ fontSize: 10, color: ZONE_COLORS[s.conv.zone] }}>{s.conv.score}</span>
-      </div>)}
-    </div>
-    <div style={{ flex: 1, background: X.c1, border: `1px solid ${X.b1}`, padding: 16, overflowY: "auto" }}>
-      <div style={{ borderBottom: `1px solid ${X.b1}`, paddingBottom: 10, marginBottom: 12, display: "flex", justifyContent: "space-between" }}>
-        <div><span style={{ fontFamily: fu, fontSize: 21, fontWeight: 700, color: X.tb }}>{sel.tk}</span><span style={{ fontFamily: fu, fontSize: 15, color: X.td, marginLeft: 8 }}>{sel.nm}</span><span style={{ marginLeft: 8 }}><ZoneBadge zone={sel.conv.zone} /></span></div>
-        <div style={{ fontSize: 24, fontFamily: ft, fontWeight: 700, color: ZONE_COLORS[sel.conv.zone] }}>{sel.conv.score}<span style={{ fontSize: 14, color: X.td }}>/{sel.conv.max}</span></div>
-      </div>
-      {/* 3-framework breakdown */}
-      {[
-        ["WEINSTEIN — Stage Analysis", X.g, `Stage ${sel.wein.stage} · 30wk MA ${sel.wein.ma30w} (${sel.wein.maSlope}) · Volume: ${sel.wein.vol}`],
-        ["MINERVINI — SEPA / Trend Template", X.p, `Template: ${sel.min.tpl.filter(x => x).length}/8 · RS: ${sel.min.rs} · VCP: ${sel.min.vcp.ct > 0 ? `${sel.min.vcp.ct} contractions (${sel.min.vcp.depths}) Pivot ${sel.min.vcp.pivot}` : "None"} · EPS: ${sel.min.eps > 0 ? "+" : ""}${sel.min.eps}% Rev: +${sel.min.rev}% · Margins: ${sel.min.margins}`],
-        ["KELL — Cycle of Price Action", X.cy, `Phase: ${sel.kell.phase} · Light: ${sel.kell.light} · EMA D/W/M: ${sel.kell.emaD}/${sel.kell.emaW}/${sel.kell.emaM} · Base #${sel.kell.base || "—"}`],
-      ].map(([title, c, detail]) => <div key={title} style={{ borderLeft: `2px solid ${c}40`, paddingLeft: 10, marginBottom: 8 }}>
-        <div style={{ fontSize: 11, fontFamily: ft, color: c, letterSpacing: 1.5, marginBottom: 3 }}>{title}</div>
-        <div style={{ fontSize: 14, fontFamily: ft, color: X.tx, lineHeight: 1.7 }}>{detail}</div>
-      </div>)}
-      {/* Setup + Risk */}
-      <div style={{ background: sel.conv.zone === "CONVERGENCE" ? X.gd + "10" : X.bl + "10", border: `1px solid ${sel.conv.zone === "CONVERGENCE" ? X.gd : X.bl}20`, padding: "10px 12px", borderLeft: `3px solid ${sel.conv.zone === "CONVERGENCE" ? X.gd : X.bl}`, marginTop: 8 }}>
-        <div style={{ fontSize: 11, fontFamily: ft, color: sel.conv.zone === "CONVERGENCE" ? X.gd : X.bl, letterSpacing: 1.5, marginBottom: 4 }}>CONVERGENCE THESIS</div>
-        <div style={{ fontSize: 14, fontFamily: fu, color: X.tx, lineHeight: 1.8 }}>{sel.setup}</div>
-      </div>
-      {sel.optPlay && sel.optPlay !== "No play" && <div style={{ background: X.bl + "10", border: `1px solid ${X.bl}20`, padding: "8px 12px", marginTop: 6 }}>
-        <div style={{ fontSize: 11, fontFamily: ft, color: X.bl, letterSpacing: 1.5, marginBottom: 3 }}>OPTIONS PLAY</div>
-        <div style={{ fontSize: 14, fontFamily: ft, color: X.cy }}>{sel.optPlay}</div>
-      </div>}
-      <div style={{ background: X.r + "08", border: `1px solid ${X.r}20`, padding: "8px 12px", borderLeft: `3px solid ${X.r}`, marginTop: 6 }}>
-        <div style={{ fontSize: 11, fontFamily: ft, color: X.r, letterSpacing: 1.5, marginBottom: 3 }}>RISK / FLAGS</div>
-        <div style={{ fontSize: 14, fontFamily: fu, color: X.tx, lineHeight: 1.8 }}>{sel.risk}</div>
-        {sel.exit.map((e, i) => <div key={i} style={{ fontSize: 13, fontFamily: ft, color: e.severity === "fail" ? X.r : X.a, marginTop: 2 }}>⚠ {e.signal}</div>)}
-      </div>
-      {/* Full Checklist */}
-      <div style={{ marginTop: 10 }}><Checklist s={sel} /></div>
-    </div>
-  </div>;
-}
-
-// ═══ TAB: RISK/DIVERGENCE ═══
-function RI() {
-  const [sel, setSel] = useState(THREATS[0]);
-  return <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-    <div style={{ background: X.r + "06", border: `1px solid ${X.r}20`, padding: "10px 14px" }}>
-      <div style={{ fontFamily: fu, fontSize: 15, fontWeight: 600, color: X.r, marginBottom: 4 }}>Divergence Zone — Where All 3 Frameworks Say EXIT</div>
-      <div style={{ fontSize: 11, fontFamily: fu, color: X.td }}>Weinstein S3/S4 + Minervini Template failing + Kell Red Light/Wedge Drop = confirmed distribution or downtrend</div>
-    </div>
-    <div style={{ background: X.c1, border: `1px solid ${X.b1}`, padding: 12 }}>
-      {THREATS.map((t, i) => <div key={t.tk} onClick={() => setSel(t)} style={{ display: "grid", gridTemplateColumns: "55px 60px 55px 55px 55px 1fr", padding: "8px 6px", gap: 4, cursor: "pointer", alignItems: "center", background: sel?.tk === t.tk ? X.r + "10" : "transparent", borderLeft: sel?.tk === t.tk ? `2px solid ${X.r}` : "2px solid transparent" }}>
-        <span style={{ fontFamily: ft, fontSize: 15, fontWeight: 700, color: X.tb }}>{t.tk}</span>
-        <span style={{ fontSize: 13, fontFamily: ft, color: X.r }}>{t.sc}/10</span>
-        <span style={{ fontSize: 13, fontFamily: ft, color: X.a }}>{t.wsb} WSB</span>
-        <span style={{ fontSize: 13, fontFamily: ft, color: X.r }}>{t.sf}% short</span>
-        <Pc v={t.mc} s={13} />
-        <span style={{ fontSize: 11, fontFamily: ft, color: X.td }}>{t.type}</span>
-      </div>)}
-    </div>
-    {sel && <div style={{ background: X.c1, border: `1px solid ${X.r}20`, padding: 16, borderLeft: `3px solid ${X.r}` }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-        <span style={{ fontFamily: fu, fontSize: 18, fontWeight: 700, color: X.r }}>🚨 {sel.tk} — {sel.type}</span>
-        <span style={{ fontFamily: ft, fontSize: 16, fontWeight: 700, color: X.r, padding: "2px 8px", background: "#3d0a15", borderRadius: 3 }}>{sel.sc}/10</span>
-      </div>
-      <div style={{ fontFamily: fu, fontSize: 15, color: X.tx, lineHeight: 1.9, marginBottom: 10 }}>{sel.sum}</div>
-      <div style={{ fontSize: 11, fontFamily: ft, color: X.r, letterSpacing: 1.5, marginBottom: 4 }}>TRIPLE FRAMEWORK EXIT SIGNALS</div>
-      {sel.divSignals.map((s, i) => <div key={i} style={{ fontSize: 13, fontFamily: ft, color: X.tx, padding: "2px 0", borderLeft: `2px solid ${X.r}40`, paddingLeft: 8, marginBottom: 2 }}>✗ {s}</div>)}
-    </div>}
-  </div>;
-}
-
-// ═══ TAB: JOURNAL ═══
-function JN() {
-  const w = JOURNAL.filter(j => j.pnl > 0).length;
-  return <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-      <Cd l="Trades" v={JOURNAL.length} /><Cd l="Win Rate" v={`${((w / JOURNAL.length) * 100).toFixed(0)}%`} ac={w / JOURNAL.length >= .5 ? X.g : X.r} /><Cd l="Convergence Trades" v={JOURNAL.filter(j => j.conv === "PRIMARY").length} ac={X.gd} sub="Full MKW convergence entries" />
-    </div>
-    <div style={{ background: X.c1, border: `1px solid ${X.b1}`, overflow: "hidden" }}>
-      <div style={{ padding: "8px 14px", borderBottom: `1px solid ${X.b1}`, fontSize: 13, fontFamily: fu, fontWeight: 600, color: X.tb }}>Trade Log — Tagged by Convergence Level</div>
-      {JOURNAL.map(j => <div key={j.id} style={{ display: "grid", gridTemplateColumns: "50px 44px 40px 80px 48px 48px 48px 65px 1fr", padding: "7px 14px", gap: 3, alignItems: "center", borderBottom: `1px solid ${X.b1}06` }}>
-        <span style={{ fontSize: 11, fontFamily: ft, color: X.td }}>{j.d}</span>
-        <span style={{ fontSize: 14, fontFamily: ft, fontWeight: 700, color: X.tb }}>{j.tk}</span>
-        <span style={{ fontSize: 10, fontFamily: ft, fontWeight: 600, color: j.a === "BUY" ? X.g : X.r }}>{j.a}</span>
-        <span style={{ fontSize: 11, fontFamily: ft, color: X.tx }}>{j.ty} {j.st}</span>
-        <span style={{ fontSize: 11, fontFamily: ft, color: X.tx }}>${j.en}</span>
-        <span style={{ fontSize: 11, fontFamily: ft, color: X.tx }}>{j.cu > 0 ? `${j.cu}` : "—"}</span>
-        <span style={{ fontSize: 13, fontFamily: ft, fontWeight: 600, color: j.pnl >= 0 ? X.g : X.r }}>{j.pnl >= 0 ? "+" : ""}{j.pnl}%</span>
-        <span style={{ fontSize: 10, fontFamily: ft, padding: "1px 5px", borderRadius: 2, color: j.conv === "PRIMARY" ? X.gd : j.conv === "EXIT" ? X.r : X.a, background: (j.conv === "PRIMARY" ? X.gd : j.conv === "EXIT" ? X.r : X.a) + "15" }}>{j.conv}</span>
-        <span style={{ fontSize: 10, fontFamily: ft, color: X.td, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{j.n}</span>
-      </div>)}
-    </div>
-  </div>;
-}
-
-// ═══ TAB: MARKET BREADTH ═══
-function MB() {
-  const b = BREADTH;
-  let es = 0; if (b.spx.stage === 2) es++; if (b.spx.ema20 === "above") es++; if (b.tplCount > 500) es++; if (b.a50 > 55) es++; if (b.a200 > 55) es++; if (b.vix < 20) es++; if (b.sec.filter(s => s.p > 1).length >= 4) es++;
-  const ec = es >= 6 ? X.g : es >= 4 ? X.a : X.r;
-  return <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-    <MarketEnv />
-    <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-      <div style={{ flex: "1 1 280px", background: X.c1, border: `1px solid ${X.b1}`, padding: 12 }}>
-        <div style={{ fontSize: 13, fontFamily: fu, fontWeight: 600, color: X.tb, marginBottom: 8 }}>Breadth Internals</div>
-        {[["Advance/Decline", `${b.ad.a}/${b.ad.d} (${(b.ad.a / b.ad.d).toFixed(2)})`, b.ad.a > b.ad.d], ["New Highs/Lows", `${b.nh.h}/${b.nh.l}`, b.nh.h > b.nh.l], ["% > 50 DMA", `${b.a50}%`, b.a50 > 50], ["% > 200 DMA", `${b.a200}%`, b.a200 > 50]].map(([k, v, ok]) => <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "5px 0", borderBottom: `1px solid ${X.b1}06` }}><span style={{ fontSize: 13, fontFamily: fu, color: X.tx }}>{k}</span><span style={{ fontSize: 15, fontFamily: ft, fontWeight: 600, color: ok ? X.g : X.r }}>{v}</span></div>)}
-      </div>
-      <div style={{ flex: "1 1 280px", background: X.c1, border: `1px solid ${X.b1}`, padding: 12 }}>
-        <div style={{ fontSize: 13, fontFamily: fu, fontWeight: 600, color: X.tb, marginBottom: 8 }}>MKW Position Sizing Guide</div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-          <div style={{ fontSize: 30, fontFamily: ft, fontWeight: 700, color: ec }}>{es}<span style={{ fontSize: 16, color: X.td }}>/7</span></div>
-          <div style={{ fontSize: 15, fontFamily: fu, fontWeight: 700, color: ec }}>{es >= 6 ? "FULL SIZE" : es >= 4 ? "STANDARD" : es >= 2 ? "HALF SIZE" : "CASH"}</div>
+  const icons = { CONVERGENCE: "⚡", SECONDARY: "◈", BUILDING: "◇", WATCH: "◌" };
+  return <div style={{ padding: "14px 16px", paddingBottom: 100, display: "flex", flexDirection: "column", gap: 14 }}>
+    {zones.map(zone => {
+      const items = STOCKS.filter(s => s.conv.zone === zone);
+      if (!items.length) return null;
+      const zc = ZONE_K[zone];
+      return <Glass key={zone} glow={zc}>
+        <div style={{
+          padding: "10px 16px", borderBottom: `1px solid ${zc}12`,
+          background: `linear-gradient(90deg, ${zc}10, transparent)`,
+        }}>
+          <span style={{ fontFamily: hd, fontSize: 10, fontWeight: 800, letterSpacing: 2, color: zc, textShadow: `0 0 10px ${zc}30` }}>
+            {icons[zone]} {zone}
+          </span>
+          <span style={{ fontFamily: mn, fontSize: 9, color: K.text, marginLeft: 8 }}>{items.length}</span>
         </div>
-        <div style={{ background: X.bg, height: 4, borderRadius: 2, marginBottom: 8 }}><div style={{ width: `${(es / 7) * 100}%`, height: "100%", background: ec, borderRadius: 2 }} /></div>
-        {[["S&P Stage 2", b.spx.stage === 2], ["Kell Green Light", b.spx.ema20 === "above"], [">500 TPL qualifiers", b.tplCount > 500], [">55% > 50d", b.a50 > 55], [">55% > 200d", b.a200 > 55], ["VIX < 20", b.vix < 20], ["≥4 hot sectors", b.sec.filter(s => s.p > 1).length >= 4]].map(([l, p]) => <div key={l} style={{ display: "flex", gap: 4, fontSize: 11, fontFamily: ft, marginBottom: 1 }}><span style={{ color: p ? X.g : X.r }}>{p ? "✓" : "✗"}</span><span style={{ color: X.td }}>{l}</span></div>)}
-      </div>
-    </div>
-    <div style={{ background: X.c1, border: `1px solid ${X.b1}`, padding: 12 }}>
-      <div style={{ fontSize: 13, fontFamily: fu, fontWeight: 600, color: X.tb, marginBottom: 6 }}>Sector Heatmap</div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))", gap: 4 }}>
-        {[...b.sec].sort((a, c) => c.p - a.p).map(s => { const c = s.p > .5 ? X.g : s.p > -.5 ? X.td : X.r; const bg = s.p > 0 ? `rgba(0,230,118,${Math.min(1, Math.abs(s.p) / 4) * .25})` : `rgba(255,61,87,${Math.min(1, Math.abs(s.p) / 4) * .25})`; return <div key={s.n} style={{ background: bg, padding: "9px 10px", textAlign: "center" }}><div style={{ fontSize: 10, fontFamily: fu, color: X.td, marginBottom: 2 }}>{s.n}</div><div style={{ fontSize: 18, fontFamily: ft, fontWeight: 700, color: c }}>{s.p > 0 ? "+" : ""}{s.p}%</div></div>; })}
-      </div>
-    </div>
+        {items.map((s, i) => <div key={s.tk} onClick={() => onSelect(s)} style={{
+          padding: "12px 16px", cursor: "pointer",
+          borderBottom: i < items.length - 1 ? `1px solid ${K.edge}15` : "none",
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+              <span style={{ fontFamily: hd, fontSize: 16, fontWeight: 900, color: K.white, letterSpacing: 1 }}>{s.tk}</span>
+              <span style={{ fontFamily: mn, fontSize: 11, color: K.text }}>${s.px}</span>
+            </div>
+            <ConvMeter score={s.conv.score} max={s.conv.max} />
+          </div>
+          <div style={{ display: "flex", gap: 10, marginTop: 6, alignItems: "center" }}>
+            <Pc v={s.dp} s={11} /><Pc v={s.wp} s={11} /><Pc v={s.mp} s={11} />
+            <span style={{
+              marginLeft: "auto", fontFamily: hd, fontSize: 10, fontWeight: 800,
+              color: s.min.rs >= 80 ? K.neon : s.min.rs >= 70 ? K.sol : K.ember,
+              textShadow: `0 0 8px ${s.min.rs >= 80 ? K.neonDim : s.min.rs >= 70 ? K.solDim : K.emberDim}`,
+            }}>RS {s.min.rs}</span>
+          </div>
+          <div style={{ display: "flex", gap: 6, marginTop: 8, alignItems: "center" }}>
+            <div style={{ display: "flex", gap: 3 }}>
+              <Orb c={s.kell.emaD === "bull" ? K.neon : K.sol} />
+              <Orb c={s.kell.emaW === "bull" ? K.neon : K.sol} />
+              <Orb c={s.kell.emaM === "bull" ? K.neon : K.sol} />
+            </div>
+            <span style={{ fontFamily: mn, fontSize: 10, color: K.textMid, marginLeft: 4 }}>{s.kell.phase}</span>
+            <span style={{ fontFamily: hd, fontSize: 9, color: K.text, marginLeft: "auto", fontWeight: 600 }}>TPL {s.min.tpl}/8</span>
+          </div>
+          <div style={{ fontFamily: bd, fontSize: 10, color: K.text, marginTop: 6, lineHeight: 1.5 }}>{s.setup}</div>
+          {s.flags.length > 0 && <div style={{ display: "flex", gap: 4, marginTop: 6, flexWrap: "wrap" }}>
+            {s.flags.map(f => <span key={f} style={{
+              fontSize: 8, fontFamily: hd, fontWeight: 600, letterSpacing: 0.5,
+              padding: "2px 6px", borderRadius: 3,
+              background: K.emberGlow, color: K.ember, border: `1px solid ${K.ember}20`,
+            }}>⚠ {f}</span>)}
+          </div>}
+        </div>)}
+      </Glass>;
+    })}
   </div>;
 }
 
-const TABS = [{ id: "dash", l: "DASHBOARD" }, { id: "wl", l: "WATCHLIST" }, { id: "ai", l: "AI ANALYSIS" }, { id: "mb", l: "MARKET BREADTH" }, { id: "ri", l: "DIVERGENCE / EXIT" }, { id: "jn", l: "JOURNAL" }];
+// ═══ DETAIL VIEW ═══
+function DetailView({ s, onBack }) {
+  const zc = ZONE_K[s.conv.zone];
+  return <div style={{ padding: "14px 16px", paddingBottom: 100, display: "flex", flexDirection: "column", gap: 12 }}>
+    {/* Header */}
+    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+      <button onClick={onBack} style={{
+        background: K.raised, border: `1px solid ${K.edge}`, borderRadius: 10,
+        color: K.textMid, fontSize: 18, cursor: "pointer", padding: "6px 12px",
+      }}>‹</button>
+      <div style={{ flex: 1 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{
+            fontFamily: hd, fontSize: 24, fontWeight: 900, color: K.white, letterSpacing: 2,
+            textShadow: `0 0 20px ${zc}30`,
+          }}>{s.tk}</span>
+          <div style={{
+            fontFamily: hd, fontSize: 28, fontWeight: 900, color: zc,
+            textShadow: `0 0 20px ${zc}50`,
+          }}>{s.conv.score}<span style={{ fontSize: 12, color: K.text, fontWeight: 400 }}>/{s.conv.max}</span></div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2 }}>
+          <span style={{ fontFamily: bd, fontSize: 12, color: K.text }}>{s.nm}</span>
+          <ZTag zone={s.conv.zone} />
+        </div>
+      </div>
+    </div>
+
+    {/* Performance */}
+    <div style={{ display: "flex", gap: 6 }}>
+      {[["DAY", s.dp], ["WEEK", s.wp], ["MONTH", s.mp]].map(([l, v]) =>
+        <div key={l} style={{
+          flex: 1, background: K.panel, borderRadius: 10, padding: "10px 12px",
+          border: `1px solid ${K.edge}`,
+        }}>
+          <div style={{ fontFamily: hd, fontSize: 7, fontWeight: 600, color: K.text, letterSpacing: 2, marginBottom: 4 }}>{l}</div>
+          <Pc v={v} s={16} />
+        </div>
+      )}
+    </div>
+
+    {/* 3 Frameworks */}
+    {[
+      ["WEINSTEIN", K.neon, `Stage ${s.wein.stage}\n30wk MA ${s.wein.ma}\nBreakout Vol: ${s.wein.vol}`],
+      ["MINERVINI", K.prism, `Template ${s.min.tpl}/8 · RS ${s.min.rs}\nVCP: ${s.min.vcp || "—"}\nEPS: ${s.min.eps > 0 ? "+" : ""}${s.min.eps}% · Rev: +${s.min.rev}%${s.min.pivot ? `\nPivot: $${s.min.pivot}` : ""}`],
+      ["KELL", K.arc, `Phase: ${s.kell.phase}\nLight: ${s.kell.light} · Base #${s.kell.base || "—"}\nEMA D/W/M: ${s.kell.emaD}/${s.kell.emaW}/${s.kell.emaM}`],
+    ].map(([name, c, detail]) => <Glass key={name} glow={c}>
+      <div style={{ padding: "12px 16px", position: "relative" }}>
+        <div style={{
+          position: "absolute", top: 0, left: 0, bottom: 0, width: 3,
+          background: `linear-gradient(180deg, ${c}, transparent)`,
+        }} />
+        <div style={{
+          fontFamily: hd, fontSize: 9, fontWeight: 800, color: c, letterSpacing: 3, marginBottom: 6,
+          textShadow: `0 0 10px ${c}40`,
+        }}>{name}</div>
+        <div style={{ fontFamily: mn, fontSize: 11, color: K.textMid, lineHeight: 1.8, whiteSpace: "pre-line" }}>{detail}</div>
+      </div>
+    </Glass>)}
+
+    {/* Thesis */}
+    <Glass glow={zc} style={{ borderLeft: `3px solid ${zc}` }}>
+      <div style={{ padding: "14px 16px" }}>
+        <div style={{
+          fontFamily: hd, fontSize: 9, fontWeight: 800, color: zc, letterSpacing: 3, marginBottom: 8,
+          textShadow: `0 0 12px ${zc}40`,
+        }}>CONVERGENCE THESIS</div>
+        <div style={{ fontFamily: bd, fontSize: 13, color: K.textHi, lineHeight: 1.8, fontWeight: 500 }}>{s.setup}</div>
+      </div>
+    </Glass>
+
+    {/* Options */}
+    {s.opt && s.opt !== "No play" && <Glass glow={K.arc}>
+      <div style={{ padding: "12px 16px" }}>
+        <div style={{ fontFamily: hd, fontSize: 8, fontWeight: 700, color: K.arc, letterSpacing: 2, marginBottom: 4 }}>OPTIONS PLAY</div>
+        <div style={{
+          fontFamily: hd, fontSize: 14, fontWeight: 700, color: K.white, letterSpacing: 0.5,
+          textShadow: `0 0 10px ${K.arc}30`,
+        }}>{s.opt}</div>
+      </div>
+    </Glass>}
+
+    {/* Risk */}
+    <Glass glow={K.ember} style={{ borderLeft: `3px solid ${K.ember}` }}>
+      <div style={{ padding: "12px 16px" }}>
+        <div style={{ fontFamily: hd, fontSize: 8, fontWeight: 700, color: K.ember, letterSpacing: 2, marginBottom: 6 }}>RISK / FLAGS</div>
+        <div style={{ fontFamily: bd, fontSize: 12, color: K.textMid, lineHeight: 1.7 }}>{s.risk}</div>
+        {s.flags.map((f, i) => <div key={i} style={{
+          fontFamily: mn, fontSize: 10, color: K.sol, marginTop: 4,
+        }}>⚠ {f}</div>)}
+      </div>
+    </Glass>
+  </div>;
+}
+
+// ═══ RISK TAB ═══
+function RiskTab() {
+  const [sel, setSel] = useState(null);
+  return <div style={{ padding: "14px 16px", paddingBottom: 100, display: "flex", flexDirection: "column", gap: 12 }}>
+    <div style={{
+      fontFamily: hd, fontSize: 10, fontWeight: 700, letterSpacing: 3, color: K.ember,
+      textShadow: `0 0 12px ${K.emberDim}`, textAlign: "center", padding: "12px 0",
+    }}>⊘ DIVERGENCE ZONE</div>
+    {THREATS.map(t => <Glass key={t.tk} glow={K.ember}>
+      <div onClick={() => setSel(sel?.tk === t.tk ? null : t)} style={{ padding: "14px 16px", cursor: "pointer" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{
+            fontFamily: hd, fontSize: 16, fontWeight: 900, color: K.ember, letterSpacing: 1,
+            textShadow: `0 0 12px ${K.emberDim}`,
+          }}>{t.tk}</span>
+          <span style={{
+            fontFamily: hd, fontSize: 18, fontWeight: 900, color: K.ember,
+            textShadow: `0 0 15px ${K.emberDim}`,
+          }}>{t.sc}</span>
+        </div>
+        <div style={{ display: "flex", gap: 12, marginTop: 6 }}>
+          <span style={{ fontFamily: mn, fontSize: 10, color: K.ember }}>Short: {t.sf}%</span>
+          <Pc v={t.mc} s={10} />
+          <span style={{ fontFamily: bd, fontSize: 10, color: K.text }}>{t.type}</span>
+        </div>
+        {sel?.tk === t.tk && <div style={{ marginTop: 12 }}>
+          <div style={{ fontFamily: bd, fontSize: 12, color: K.textMid, lineHeight: 1.8, marginBottom: 10 }}>{t.sum}</div>
+          <div style={{ fontFamily: hd, fontSize: 8, fontWeight: 700, color: K.ember, letterSpacing: 2, marginBottom: 6 }}>EXIT SIGNALS</div>
+          {t.exits.map((e, i) => <div key={i} style={{
+            fontFamily: mn, fontSize: 10, color: K.textMid, padding: "4px 0 4px 12px",
+            borderLeft: `2px solid ${K.ember}50`, marginBottom: 3,
+          }}>✗ {e}</div>)}
+        </div>}
+      </div>
+    </Glass>)}
+  </div>;
+}
+
+// ═══ JOURNAL ═══
+function JournalTab() {
+  const w = JOURNAL.filter(j => j.pnl > 0).length;
+  const avg = JOURNAL.reduce((s, j) => s + j.pnl, 0) / JOURNAL.length;
+  const CONV_C = { PRIMARY: K.sol, PARTIAL: K.prism, EXIT: K.ember };
+  return <div style={{ padding: "14px 16px", paddingBottom: 100, display: "flex", flexDirection: "column", gap: 12 }}>
+    <div style={{ display: "flex", gap: 8 }}>
+      {[["TRADES", JOURNAL.length, K.white], ["WIN", `${((w / JOURNAL.length) * 100).toFixed(0)}%`, w / JOURNAL.length >= .5 ? K.neon : K.ember], ["AVG", `${avg >= 0 ? "+" : ""}${avg.toFixed(0)}%`, avg >= 0 ? K.neon : K.ember]].map(([l, v, c]) =>
+        <div key={l} style={{ flex: 1, background: K.panel, borderRadius: 10, padding: "10px 12px", border: `1px solid ${K.edge}` }}>
+          <div style={{ fontFamily: hd, fontSize: 7, fontWeight: 600, color: K.text, letterSpacing: 2 }}>{l}</div>
+          <div style={{ fontFamily: hd, fontSize: 20, fontWeight: 900, color: c, marginTop: 4, textShadow: `0 0 10px ${c}30` }}>{v}</div>
+        </div>
+      )}
+    </div>
+    {JOURNAL.map(j => <Glass key={j.id}>
+      <div style={{ padding: "12px 16px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+            <span style={{ fontFamily: hd, fontSize: 16, fontWeight: 900, color: K.white }}>{j.tk}</span>
+            <span style={{
+              fontFamily: hd, fontSize: 9, fontWeight: 700,
+              color: j.a === "BUY" ? K.neon : K.ember,
+              textShadow: `0 0 6px ${j.a === "BUY" ? K.neonDim : K.emberDim}`,
+            }}>{j.a}</span>
+          </div>
+          <span style={{
+            fontFamily: hd, fontSize: 16, fontWeight: 900,
+            color: j.pnl >= 0 ? K.neon : K.ember,
+            textShadow: `0 0 12px ${j.pnl >= 0 ? K.neonDim : K.emberDim}`,
+          }}>{j.pnl >= 0 ? "+" : ""}{j.pnl}%</span>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6, alignItems: "center" }}>
+          <span style={{ fontFamily: mn, fontSize: 10, color: K.arc }}>{j.st}</span>
+          <span style={{
+            fontFamily: hd, fontSize: 8, fontWeight: 700, letterSpacing: 1,
+            padding: "2px 8px", borderRadius: 3,
+            color: CONV_C[j.conv], background: CONV_C[j.conv] + "15",
+            border: `1px solid ${CONV_C[j.conv]}25`,
+          }}>{j.conv}</span>
+        </div>
+        <div style={{ fontFamily: bd, fontSize: 10, color: K.text, marginTop: 6 }}>{j.d} · {j.n}</div>
+      </div>
+    </Glass>)}
+  </div>;
+}
+
+// ═══ MAIN APP ═══
+const TABS = [
+  { id: "dash", icon: "◈", label: "HOME" },
+  { id: "watch", icon: "◉", label: "WATCH" },
+  { id: "risk", icon: "⊘", label: "RISK" },
+  { id: "journal", icon: "⊞", label: "LOG" },
+];
 
 export default function App() {
   const [tab, setTab] = useState("dash");
+  const [detail, setDetail] = useState(null);
   const [time, setTime] = useState(new Date());
   useEffect(() => { const i = setInterval(() => setTime(new Date()), 60000); return () => clearInterval(i); }, []);
+
   const convCount = STOCKS.filter(s => s.conv.zone === "CONVERGENCE").length;
-  return <div style={{ fontFamily: ft, background: X.bg, color: X.tx, minHeight: "100vh" }}>
-    <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Outfit:wght@300;400;500;600;700;800&display=swap');*{box-sizing:border-box;margin:0;padding:0}::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:${X.bg}}::-webkit-scrollbar-thumb{background:${X.b2};border-radius:2px}@keyframes pulse{0%,100%{opacity:.4}50%{opacity:1}}`}</style>
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 14px", borderBottom: `1px solid ${X.b1}`, background: X.c1 }}>
+  const onSelect = (s) => { setDetail(s); setTab("detail"); };
+
+  return <div style={{
+    fontFamily: mn, background: K.void, color: K.textMid,
+    height: "100vh", display: "flex", flexDirection: "column", overflow: "hidden",
+    position: "relative",
+  }}>
+    <style>{`
+      @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap');
+      *{box-sizing:border-box;margin:0;padding:0;-webkit-font-smoothing:antialiased}
+      ::-webkit-scrollbar{display:none}
+      @keyframes glow{0%,100%{opacity:.5}50%{opacity:1}}
+      @keyframes scan{0%{transform:translateY(-100%)}100%{transform:translateY(100vh)}}
+    `}</style>
+
+    {/* Ambient scanline */}
+    <div style={{
+      position: "fixed", top: 0, left: 0, right: 0, bottom: 0, pointerEvents: "none", zIndex: 0,
+      background: `repeating-linear-gradient(0deg, transparent, transparent 2px, ${K.white}01 2px, ${K.white}01 4px)`,
+    }} />
+
+    {/* Top Bar */}
+    <div style={{
+      padding: "10px 16px", display: "flex", justifyContent: "space-between", alignItems: "center",
+      borderBottom: `1px solid ${K.edge}`, background: K.panel,
+      position: "relative", zIndex: 10, flexShrink: 0,
+    }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <span style={{ fontFamily: fu, fontSize: 17, fontWeight: 800, color: X.tb }}><span style={{ color: X.gd }}>MKW</span> Command Center</span>
-        <span style={{ fontSize: 10, fontFamily: ft, padding: "1px 6px", borderRadius: 2, background: convCount > 0 ? X.gd + "15" : X.a + "15", color: convCount > 0 ? X.gd : X.a, border: `1px solid ${convCount > 0 ? X.gd : X.a}30`, animation: "pulse 2s infinite" }}>⚡ {convCount} CONVERGENCE</span>
+        <span style={{
+          fontFamily: hd, fontSize: 15, fontWeight: 900, color: K.white, letterSpacing: 3,
+        }}><span style={{ color: K.sol, textShadow: `0 0 15px ${K.solDim}` }}>MKW</span></span>
+        {convCount > 0 && <span style={{
+          fontFamily: hd, fontSize: 8, fontWeight: 700, letterSpacing: 1,
+          padding: "2px 8px", borderRadius: 10,
+          background: K.solGlow, color: K.sol, border: `1px solid ${K.sol}30`,
+          animation: "glow 2s infinite",
+          textShadow: `0 0 8px ${K.solDim}`,
+        }}>⚡ {convCount}</span>}
       </div>
-      <span style={{ fontSize: 11, fontFamily: ft, color: X.td }}>{time.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })} · {time.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}</span>
+      <span style={{ fontFamily: mn, fontSize: 9, color: K.text }}>{time.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}</span>
     </div>
-    <div style={{ display: "flex", gap: 0, borderBottom: `1px solid ${X.b1}`, overflowX: "auto" }}>
-      {TABS.map(t => <button key={t.id} onClick={() => setTab(t.id)} style={{ padding: "8px 14px", fontSize: 11, fontFamily: ft, letterSpacing: 1, background: tab === t.id ? X.bg : "transparent", color: tab === t.id ? X.tb : X.td, border: "none", borderBottom: tab === t.id ? `2px solid ${X.gd}` : "2px solid transparent", cursor: "pointer", whiteSpace: "nowrap", textTransform: "uppercase" }}>{t.l}</button>)}
+
+    {/* Content */}
+    <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", WebkitOverflowScrolling: "touch", position: "relative", zIndex: 5 }}>
+      {tab === "dash" && <DashTab onSelect={onSelect} />}
+      {tab === "watch" && <WatchTab onSelect={onSelect} />}
+      {tab === "detail" && detail && <DetailView s={detail} onBack={() => setTab("watch")} />}
+      {tab === "risk" && <RiskTab />}
+      {tab === "journal" && <JournalTab />}
     </div>
-    <div style={{ padding: "12px 14px", overflowY: "auto", maxHeight: "calc(100vh - 72px)", paddingBottom: 30 }}>
-      {tab === "dash" && <Dash />}
-      {tab === "wl" && <WL stocks={STOCKS} />}
-      {tab === "ai" && <AI />}
-      {tab === "mb" && <MB />}
-      {tab === "ri" && <RI />}
-      {tab === "jn" && <JN />}
-    </div>
-    <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, padding: "3px 14px", background: X.c1, borderTop: `1px solid ${X.b1}`, display: "flex", justifyContent: "space-between", fontSize: 10, fontFamily: ft, color: X.td }}>
-      <span>MKW v2.0 · Convergence Engine · Minervini × Kell × Weinstein</span>
-      <span><span style={{ color: X.gd }}>⚡</span> {STOCKS.length} names · {convCount} convergence · {THREATS.length} divergence alerts</span>
+
+    {/* Bottom Tab Bar */}
+    <div style={{
+      display: "flex", justifyContent: "space-around",
+      padding: "8px 0 22px", flexShrink: 0,
+      background: `linear-gradient(180deg, ${K.panel}f0, ${K.void})`,
+      borderTop: `1px solid ${K.edge}`,
+      backdropFilter: "blur(20px)",
+      position: "relative", zIndex: 10,
+    }}>
+      {TABS.map(t => {
+        const active = tab === t.id || (tab === "detail" && t.id === "watch");
+        return <button key={t.id} onClick={() => { setTab(t.id); if (t.id !== "detail") setDetail(null); }} style={{
+          background: "none", border: "none", cursor: "pointer",
+          display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
+          padding: "4px 18px",
+          color: active ? K.sol : K.text,
+          transition: "all 0.2s",
+        }}>
+          <span style={{
+            fontSize: 20,
+            filter: active ? `drop-shadow(0 0 6px ${K.sol}80)` : "none",
+          }}>{t.icon}</span>
+          <span style={{
+            fontSize: 8, fontFamily: hd, fontWeight: active ? 800 : 500,
+            letterSpacing: 1.5,
+            textShadow: active ? `0 0 8px ${K.sol}40` : "none",
+          }}>{t.label}</span>
+        </button>;
+      })}
     </div>
   </div>;
 }
